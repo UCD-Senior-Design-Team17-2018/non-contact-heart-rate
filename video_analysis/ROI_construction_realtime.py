@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
-"""q
-Created on Thu Mar  8 16:43:09 2018
+"""
+Created on Thu Mar 15 11:54:18 2018
 
 @author: Bijta
-
-
-Kind of functional... Does not work when face is not detected ex: in low-light conditions
 """
+
+# -*- coding: utf-8 -*-
+
 import cv2
 import numpy as np
 # Change these variables based on the location of your cloned, local repositories on your computer
 PATH_TO_HAAR_CASCADES = "C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/" 
 face_cascade = cv2.CascadeClassifier(PATH_TO_HAAR_CASCADES+'haarcascade_frontalface_default.xml') # Full pathway must be used
+
+# Constants for finding range of skin color in YCrCb
+min_YCrCb = numpy.array([80,133,77],numpy.uint8)
+max_YCrCb = numpy.array([255,173,127],numpy.uint8)
+
 
 # params for ShiTomasi corner detection
 feature_params = dict( maxCorners = 10,
@@ -34,6 +39,12 @@ while cap.isOpened():
     ret, frame = cap.read()
     if ret == True:
         frame_num += 1
+        # Convert image to YCrCb
+        imageYCrCb = cv2.cvtColor(frame.copy(),cv2.COLOR_BGR2YCR_CB)
+        # Find region with skin tone in YCrCb image
+        skinRegion = cv2.inRange(imageYCrCb,min_YCrCb,max_YCrCb)
+        # Do contour detection on skin region
+        im, contours, hierarchy = cv2.findContours(skinRegion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if firstFrame is None:
             # Take first frame and find face in it
             firstFrame = frame
@@ -49,6 +60,7 @@ while cap.isOpened():
                     VJ_mask = np.zeros_like(firstFrame)
                     VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x+w,y+h),(255,0,0),-1)
                     VJ_mask = cv2.cvtColor(VJ_mask, cv2.COLOR_BGR2GRAY)
+                ROI = cv2.bitwise_and(VJ_mask,im)
                 p0 = cv2.goodFeaturesToTrack(old_gray, mask = VJ_mask, **feature_params)
                 # Create a mask image for drawing purposes
                 mask = np.zeros_like(firstFrame)
@@ -81,6 +93,9 @@ while cap.isOpened():
                 x2 = transformed[1,0,0]
                 y2 = transformed[1,0,1]
                 cv2.rectangle(frame,(x1,y1),(x1+w,y1+h),(255,0,0),2)
+                VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x+w,y+h),(255,255,255),-1)
+                ROI = cv2.bitwise_and(VJ_mask,im)
+                cv2.imshow('ROI',ROI)
                 #cv2.polylines(frame,[transformed],True,(255,0,0))
                 # draw the tracks
                 for i,(new,old) in enumerate(zip(good_new,good_old)):
@@ -93,9 +108,9 @@ while cap.isOpened():
                 k = cv2.waitKey(30) & 0xff
                 if k == 27:
                     break
-                # Now update the previous frame and previous points
-                old_gray = frame_gray.copy()
-                p0 = good_new.reshape(-1,1,2)
+            # Now update the previous frame and previous points
+            old_gray = frame_gray.copy()
+            p0 = good_new.reshape(-1,1,2)
 
 
 cap.release()
