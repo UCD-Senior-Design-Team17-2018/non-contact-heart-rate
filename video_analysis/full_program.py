@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Mar 15 11:54:18 2018
+Created on Thu Mar 15 13:26:39 2018
 
 @author: Bijta
+
+    NOT DONE
 """
 
-# -*- coding: utf-8 -*-
-
 import cv2
+import datetime
 import numpy as np
+from scipy import signal
+import scipy.fftpack
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import matplotlib.pyplot as plt
-
 # Change these variables based on the location of your cloned, local repositories on your computer
 PATH_TO_HAAR_CASCADES = "C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/" 
 face_cascade = cv2.CascadeClassifier(PATH_TO_HAAR_CASCADES+'haarcascade_frontalface_default.xml') # Full pathway must be used
@@ -33,10 +36,23 @@ lk_params = dict( winSize  = (15,15),
 color = np.random.randint(0,255,(100,3))
 firstFrame = None
 #cap = cv2.VideoCapture("C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/test/VJ+KLT_test.mp4")
+time = []
+R = []
+G = []
+B = []
+R_q = []
+clf = LinearDiscriminantAnalysis(n_components=1)
+
+hamming = signal.firwin(5, [0.7,4], window = 'hamming', pass_zero=False,fs=10) #fs needs to be changed, doing in dark environment so...
+def R_quantize(R,num):
+    n = np.floor((R/(256/num))+0.5)
+    return n
+
 cap = cv2.VideoCapture(0)
 if cap.isOpened() == False:
     print("Failed to open webcam")
-frame_num = 0;
+frame_num = 0
+plt.ion()
 while cap.isOpened():
     ret, frame = cap.read()
     if ret == True:
@@ -48,6 +64,8 @@ while cap.isOpened():
         # Do contour detection on skin region
         im, contours, hierarchy = cv2.findContours(skinRegion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if firstFrame is None:
+            start = datetime.datetime.now()
+            time.append(0)
             # Take first frame and find face in it
             firstFrame = frame
             cv2.imshow("frame",firstFrame)
@@ -63,6 +81,15 @@ while cap.isOpened():
                     VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x+w,y+h),(255,0,0),-1)
                     VJ_mask = cv2.cvtColor(VJ_mask, cv2.COLOR_BGR2GRAY)
                 ROI = cv2.bitwise_and(VJ_mask,im)
+                ROI_color = cv2.bitwise_and(ROI,ROI,mask=VJ_mask)
+                cv2.imshow('ROI',ROI_color)
+                R_new,G_new,B_new,_ = cv2.mean(ROI_color,mask=ROI)
+                R.append(R_new)
+                G.append(G_new)
+                B.append(B_new)
+                
+                
+                
                 p0 = cv2.goodFeaturesToTrack(old_gray, mask = VJ_mask, **feature_params)
                 # Create a mask image for drawing purposes
                 mask = np.zeros_like(firstFrame)
@@ -71,6 +98,9 @@ while cap.isOpened():
             break
     
         else:
+            current = datetime.datetime.now()-start
+            current = current.total_seconds()
+            time.append(current)
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
             # calculate optical flow
@@ -79,9 +109,6 @@ while cap.isOpened():
             good_new = p1[st==1]
             good_old = p0[st==1]
             good_err = err[st==1]
-#            if good_new.shape[1] < 3:
-#                print('No more good features')
-#                break
             if ret:
                 transformed = np.zeros_like(np.array([[[x,y]],[[x+w,y]],[[x+w,y+h]],[[x,y+h]]]))
                 #tmatrix = cv2.getPerspectiveTransform(good_old[np.argsort(good_err,axis=0)[:4]],good_new[np.argsort(good_err,axis=0)[:4]])
@@ -97,8 +124,14 @@ while cap.isOpened():
                 cv2.rectangle(frame,(x1,y1),(x1+w,y1+h),(255,0,0),2)
                 VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x+w,y+h),(255,255,255),-1)
                 ROI = cv2.bitwise_and(VJ_mask,im)
-                ROI = cv2.bitwise_and(frame,frame,mask=ROI)
-                cv2.imshow('ROI',ROI)
+                ROI_color = cv2.bitwise_and(frame,frame,mask=ROI)
+                cv2.imshow('ROI',ROI_color)
+                R_new,G_new,B_new,_ = cv2.mean(ROI_color, mask=ROI)
+                R.append(R_new)
+                G.append(G_new)
+                B.append(B_new)
+                R_q.append(R_quantize(R_new,250))
+
                 #cv2.polylines(frame,[transformed],True,(255,0,0))
                 # draw the tracks
                 for i,(new,old) in enumerate(zip(good_new,good_old)):
@@ -111,6 +144,34 @@ while cap.isOpened():
                 k = cv2.waitKey(30) & 0xff
                 if k == 27:
                     break
+
+                if frame_num >= 200:
+                    X = np.array([G[-199:],B[-199:]]).transpose()
+                    Y=np.array(R_q[-199:]).transpose()
+                    X_f = clf.fit(X,Y).transform(X) #LDA
+                    X_f_filt = np.convolve(X_f[:,0],hamming,mode='valid') #apply filter
+                    T = 1/10
+                    N = frame_num
+                    fft = scipy.fftpack.fft(X_f_filt) #FFT
+                    xf = np.linspace(0.0, 1.0/(2.0*T), N/2)
+                    plt.figure(0)
+                    plt.scatter(current,X_f[-1])
+                    plt.figure(1)
+                    plt.gcf().clear()
+                    xf = np.linspace(0.0, 1.0/(2.0*T), N/2)
+                    plt.plot(xf, 2.0/N * np.abs(fft[:N//2]))
+                    plt.pause(0.001)
+                
+                    
+                
+#            plt.scatter(current,R_new)
+#            plt.scatter(current,G_new)
+#            plt.scatter(current,B_new)
+#            plt.pause(0.001)
+            R_q.append(R_quantize(R_new,150))
+            
+            #plt.scatter(frame_num,G_new)
+            #plt.scatter(frame_num,B_new)             
             # Now update the previous frame and previous points
             old_gray = frame_gray.copy()
             p0 = good_new.reshape(-1,1,2)
@@ -118,5 +179,3 @@ while cap.isOpened():
 
 cap.release()
 cv2.destroyAllWindows()
-
-    
