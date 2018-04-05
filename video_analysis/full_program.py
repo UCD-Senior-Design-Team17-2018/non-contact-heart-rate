@@ -11,8 +11,10 @@ import cv2
 import datetime
 import numpy as np
 from scipy import signal
-import scipy.fftpack
+from scipy.fftpack import fft, fftfreq, fftshift
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 # Change these variables based on the location of your cloned, local repositories on your computer
 PATH_TO_HAAR_CASCADES = "C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/" 
@@ -24,7 +26,7 @@ max_YCrCb = np.array([255,173,127],np.uint8)
 
 
 # params for ShiTomasi corner detection
-feature_params = dict( maxCorners = 10,
+feature_params = dict( maxCorners = 100,
                        qualityLevel = 0.03,
                        minDistance = 10,
                        blockSize = 7 )
@@ -35,6 +37,14 @@ lk_params = dict( winSize  = (15,15),
 # Create some random colors
 color = np.random.randint(0,255,(100,3))
 firstFrame = None
+
+def checkedTrace(img0, img1, p0, back_threshold = 1.0):
+    p1, _st, _err = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk_params)
+    p0r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk_params)
+    d = abs(p0-p0r).reshape(-1, 2).max(-1)
+    status = d < back_threshold
+    return p1, status
+
 #cap = cv2.VideoCapture("C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/test/VJ+KLT_test.mp4")
 time = []
 R = []
@@ -42,8 +52,8 @@ G = []
 B = []
 R_q = []
 clf = LinearDiscriminantAnalysis(n_components=1)
-
-hamming = signal.firwin(5, [0.7,4], window = 'hamming', pass_zero=False,fs=10) #fs needs to be changed, doing in dark environment so...
+pca = PCA(n_components=3)
+hamming = signal.firwin(21, [0.7,4], window = 'hamming', pass_zero=False,fs=30) #fs needs to be changed, doing in dark environment so...
 def R_quantize(R,num):
     n = np.floor((R/(256/num))+0.5)
     return n
@@ -74,7 +84,9 @@ while cap.isOpened():
             if faces == ():
                 firstFrame = None
             else:
-                for (x,y,w,h) in faces:
+                for (x,y,w,h) in faces: 
+                    x2 = x+w
+                    y2 = y+h
                     cv2.rectangle(firstFrame,(x,y),(x+w,y+h),(255,0,0),2)
                     cv2.imshow("frame",firstFrame)
                     VJ_mask = np.zeros_like(firstFrame)
@@ -104,25 +116,29 @@ while cap.isOpened():
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
             # calculate optical flow
-            p1, st, err = cv2.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
+            p1, st = checkedTrace(old_gray,frame_gray,p0)
             # Select good points
             good_new = p1[st==1]
             good_old = p0[st==1]
-            good_err = err[st==1]
+            if good_new.shape[0] < 4:
+                print('No more good features')
+                break
             if ret:
-                transformed = np.zeros_like(np.array([[[x,y]],[[x+w,y]],[[x+w,y+h]],[[x,y+h]]]))
+                transformed = np.zeros_like(np.array([[[x,y]],[[x2,y]],[[x2,y2]],[[x,y2]]]))
                 #tmatrix = cv2.getPerspectiveTransform(good_old[np.argsort(good_err,axis=0)[:4]],good_new[np.argsort(good_err,axis=0)[:4]])
-                tmatrix = cv2.estimateRigidTransform(good_old,good_new,fullAffine=False)
+                tmatrix = cv2.estimateRigidTransform(good_old,good_new,fullAffine=True)
                 #tmatrix = cv2.estimateRigidTransform(good_old[np.argsort(good_err,axis=0)[:4]],good_new[np.argsort(good_err,axis=0)[:4]],fullAffine=True)
-                transformed = cv2.transform(np.array([[[x,y]],[[x+w,y]],[[x+w,y+h]],[[x,y+h]]]),tmatrix)
+                transformed = cv2.transform(np.array([[[x,y]],[[x2,y]],[[x2,y2]],[[x,y2]]]),tmatrix)
                 #frame = cv2.warpAffine(frame,tmatrix,dsize=frame.shape[1::-1])
                 cv2.imshow("frame",frame)
-                x1 = transformed[0,0,0]
-                y1 = transformed[0,0,1]
-                x2 = transformed[1,0,0]
-                y2 = transformed[1,0,1]
-                cv2.rectangle(frame,(x1,y1),(x1+w,y1+h),(255,0,0),2)
-                VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x+w,y+h),(255,255,255),-1)
+                x = transformed[0,0,0]
+                y = transformed[0,0,1]
+                x2 = transformed[2,0,0]
+                y2 = transformed[2,0,1]
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(255,0,0),2)
+                cv2.rectangle(frame,(x,y),(x2,y2),(0,255,0),2)
+                VJ_mask = np.zeros_like(frame_gray)
+                VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x2,y2),(255,255,255),-1)
                 ROI = cv2.bitwise_and(VJ_mask,im)
                 ROI_color = cv2.bitwise_and(frame,frame,mask=ROI)
                 cv2.imshow('ROI',ROI_color)
@@ -132,7 +148,7 @@ while cap.isOpened():
                 B.append(B_new)
                 R_q.append(R_quantize(R_new,250))
 
-                #cv2.polylines(frame,[transformed],True,(255,0,0))
+                # cv2.polylines(frame,[transformed],True,(255,0,0))
                 # draw the tracks
                 for i,(new,old) in enumerate(zip(good_new,good_old)):
                     a,b = new.ravel()
@@ -145,23 +161,36 @@ while cap.isOpened():
                 if k == 27:
                     break
 
-                if frame_num >= 200:
-                    X = np.array([G[-199:],B[-199:]]).transpose()
-                    Y=np.array(R_q[-199:]).transpose()
-                    X_f = clf.fit(X,Y).transform(X) #LDA
-                    X_f_filt = np.convolve(X_f[:,0],hamming,mode='valid') #apply filter
-                    T = 1/10
-                    N = frame_num
-                    fft = scipy.fftpack.fft(X_f_filt) #FFT
-                    xf = np.linspace(0.0, 1.0/(2.0*T), N/2)
-                    plt.figure(0)
-                    plt.scatter(current,X_f[-1])
+                if frame_num >= 100:
+                    #X = np.array([G[-199:],B[-199:]]).transpose()
+                    #Y=np.array(R_q[-199:]).transpose()
+                   # X_f = clf.fit(X,Y).transform(X) #LDA
+                    X = np.array([R[-99:],G[-99:],B[-99:]]).transpose()
+                    #X_std = signal.detrend(X_std, type='linear')
+                    b, a = signal.butter(5, [0.5/15, 4/15], btype='band')
+                    X = signal.lfilter(b, a, X)
+                    X_std = X                    
+                    X_std = StandardScaler().fit_transform(X_std)
+                    X_f=pca.fit(X_std).transform(X_std)
+                    X_f_filt = X_f[:,2]
+                    #X_f_filt = np.convolve(X_f[:,2],hamming,mode='same') #apply filter
+                    #X_f_filt = np.insert(X_f_filt,0,np.zeros(5))
+                    #X_f_filt = X_f
+                   # X_f_filt = np.convolve(G[-99:],hamming,mode='same') #apply filter (green)
+                    T = 1/30
+                    N = 100
+                    yf = fft(X_f_filt)
+                    xf = fftfreq(N, T)
+                    xf = fftshift(xf)
+                    yplot = fftshift(abs(yf))
                     plt.figure(1)
                     plt.gcf().clear()
-                    xf = np.linspace(0.0, 1.0/(2.0*T), N/2)
-                    plt.plot(xf, 2.0/N * np.abs(fft[:N//2]))
+                    fft_plot = yplot
+                    fft_plot[xf<=0.8] = 0
+                    print(str(xf[fft_plot[xf<=2].argmax()]*60)+' bpm')
+                    plt.plot(xf[(xf>=0) & (xf<=4)], fft_plot[(xf>=0) & (xf<=4)])
                     plt.pause(0.001)
-                
+
                     
                 
 #            plt.scatter(current,R_new)

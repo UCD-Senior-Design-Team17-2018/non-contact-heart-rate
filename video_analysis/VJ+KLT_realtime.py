@@ -14,7 +14,7 @@ PATH_TO_HAAR_CASCADES = "C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/
 face_cascade = cv2.CascadeClassifier(PATH_TO_HAAR_CASCADES+'haarcascade_frontalface_default.xml') # Full pathway must be used
 
 # params for ShiTomasi corner detection
-feature_params = dict( maxCorners = 10,
+feature_params = dict( maxCorners = 100,
                        qualityLevel = 0.03,
                        minDistance = 10,
                        blockSize = 7 )
@@ -24,7 +24,17 @@ lk_params = dict( winSize  = (15,15),
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 # Create some random colors
 color = np.random.randint(0,255,(100,3))
+min_corners = 5
 firstFrame = None
+
+def checkedTrace(img0, img1, p0, back_threshold = 1.0):
+    p1, _st, _err = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk_params)
+    p0r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk_params)
+    d = abs(p0-p0r).reshape(-1, 2).max(-1)
+    status = d < back_threshold
+    return p1, status
+
+
 #cap = cv2.VideoCapture("C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/test/VJ+KLT_test.mp4")
 cap = cv2.VideoCapture(0)
 if cap.isOpened() == False:
@@ -47,7 +57,9 @@ while cap.isOpened():
                     cv2.rectangle(firstFrame,(x,y),(x+w,y+h),(255,0,0),2)
                     cv2.imshow("frame",firstFrame)
                     VJ_mask = np.zeros_like(firstFrame)
-                    VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x+w,y+h),(255,0,0),-1)
+                    x2 = x+w
+                    y2 = y+h
+                    VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x2,y2),(255,0,0),-1)
                     VJ_mask = cv2.cvtColor(VJ_mask, cv2.COLOR_BGR2GRAY)
                 p0 = cv2.goodFeaturesToTrack(old_gray, mask = VJ_mask, **feature_params)
                 # Create a mask image for drawing purposes
@@ -60,28 +72,28 @@ while cap.isOpened():
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
             # calculate optical flow
-            p1, st, err = cv2.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
+            p1, st = checkedTrace(old_gray,frame_gray,p0)
             # Select good points
             good_new = p1[st==1]
             good_old = p0[st==1]
-            good_err = err[st==1]
-            if good_new.shape[1] < 4 & bool(a.size)==False:
+            if good_new.shape[0] < 4:
                 print('No more good features')
                 break
             else:
-                transformed = np.zeros_like(np.array([[[x,y]],[[x+w,y]],[[x+w,y+h]],[[x,y+h]]]))
+                transformed = np.zeros_like(np.array([[[x,y]],[[x2,y]],[[x2,y2]],[[x,y2]]]))
                 #tmatrix = cv2.getPerspectiveTransform(good_old[np.argsort(good_err,axis=0)[:4]],good_new[np.argsort(good_err,axis=0)[:4]])
-                tmatrix = cv2.estimateRigidTransform(good_old,good_new,fullAffine=False)
+                tmatrix = cv2.estimateRigidTransform(good_old,good_new,fullAffine=True)
                 #tmatrix = cv2.estimateRigidTransform(good_old[np.argsort(good_err,axis=0)[:4]],good_new[np.argsort(good_err,axis=0)[:4]],fullAffine=True)
-                transformed = cv2.transform(np.array([[[x,y]],[[x+w,y]],[[x+w,y+h]],[[x,y+h]]]),tmatrix)
+                transformed = cv2.transform(np.array([[[x,y]],[[x2,y]],[[x2,y2]],[[x,y2]]]),tmatrix)
                 #frame = cv2.warpAffine(frame,tmatrix,dsize=frame.shape[1::-1])
                 cv2.imshow("frame",frame)
-                x1 = transformed[0,0,0]
-                y1 = transformed[0,0,1]
-                x2 = transformed[1,0,0]
-                y2 = transformed[1,0,1]
-                cv2.rectangle(frame,(x1,y1),(x1+w,y1+h),(255,0,0),2)
-                #cv2.polylines(frame,[transformed],True,(255,0,0))
+                x = transformed[0,0,0]
+                y = transformed[0,0,1]
+                x2 = transformed[2,0,0]
+                y2 = transformed[2,0,1]
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(255,0,0),2)
+                cv2.rectangle(frame,(x,y),(x2,y2),(0,255,0),2)
+                #cv2.polylines(frame,[transformed],True,(0,0,255))
                 # draw the tracks
                 for i,(new,old) in enumerate(zip(good_new,good_old)):
                     a,b = new.ravel()
