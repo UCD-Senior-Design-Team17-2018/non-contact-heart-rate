@@ -100,10 +100,7 @@ Some notes about the code:
 
 2. While measuring, keep still as it only detects the region of interest in the first frame
 
-EDIT (4/9/2018): Is this post better suited for a better website, like Stack Overflow? I have seen several heart rate questions on StackOverflow, but since I think the problem is more with the signal processing of the video, I thought it would fit here more. 
-
-
-EDIT (4/11/2018): Here are some figures of the signals as requested by @A_A. This data was obtained with the same program but with a frame rate of 10fps. However, the data and result is similar for 30fps signal as well.
+Here are some figures of the signals. This data was obtained with the same program but with a frame rate of 10fps. However, the data and result is similar for 30fps signal as well.
 
 Normalized RGB signals:
 
