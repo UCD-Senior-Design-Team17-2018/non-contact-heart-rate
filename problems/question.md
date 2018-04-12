@@ -119,7 +119,7 @@ Finally, here is the FFT of the signal. The maximum peak is what is marked as th
 [![FFT][8]][8]
 
 
-  [1]: https://www.osapublishing.org/DirectPDFAccess/BA7AC915-BFAF-9AF1-6109E4FBE6DFF1B0_199381/oe-18-10-10762.pdf?da=1&id=199381&seq=0&mobile=no
+  [1]: https://www.osapublishing.org/oe/abstract.cfm?URI=oe-18-10-10762
   [2]: https://i.stack.imgur.com/Jj0SN.png
   [3]: https://i.stack.imgur.com/Fswne.png
   [4]: https://i.stack.imgur.com/Xb07O.png
