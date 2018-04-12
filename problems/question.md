@@ -126,7 +126,7 @@ Some notes about the code:
 2. While measuring, keep still as it only detects the region of interest in the first frame
 
 
-Here are some figures of the signals as requested by @A_A. This data was obtained with the same program but with a frame rate of 20 fps. However, the data and result is similar for 30fps signal as well.
+Here are some figures of the signals. This data was obtained with the same program but with a frame rate of 20 fps. However, the data and result is similar for 30fps signal as well.
 
 Normalized RGB signals (color is the signal from that color channel):
 
