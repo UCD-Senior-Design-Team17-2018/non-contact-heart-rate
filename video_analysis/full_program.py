@@ -13,7 +13,7 @@ import numpy as np
 from scipy import signal
 from scipy.fftpack import fft, fftfreq, fftshift
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, FastICA
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 # Change these variables based on the location of your cloned, local repositories on your computer
@@ -52,7 +52,7 @@ G = []
 B = []
 R_q = []
 clf = LinearDiscriminantAnalysis(n_components=1)
-pca = PCA(n_components=3)
+pca = FastICA(n_components=3)
 hamming = signal.firwin(21, [0.7,4], window = 'hamming', pass_zero=False,fs=30) #fs needs to be changed, doing in dark environment so...
 def R_quantize(R,num):
     n = np.floor((R/(256/num))+0.5)
@@ -161,25 +161,51 @@ while cap.isOpened():
                 if k == 27:
                     break
 
-                if frame_num >= 100:
+                if frame_num >= 600:
                     #X = np.array([G[-199:],B[-199:]]).transpose()
                     #Y=np.array(R_q[-199:]).transpose()
                    # X_f = clf.fit(X,Y).transform(X) #LDA
-                    X = np.array([R[-99:],G[-99:],B[-99:]]).transpose()
+                #    X = np.array([R[-100:],G[-100:],B[-100:]]).transpose()
                     #X_std = signal.detrend(X_std, type='linear')
-                    b, a = signal.butter(5, [0.5/15, 4/15], btype='band')
-                    X = signal.lfilter(b, a, X)
-                    X_std = X                    
-                    X_std = StandardScaler().fit_transform(X_std)
-                    X_f=pca.fit(X_std).transform(X_std)
-                    X_f_filt = X_f[:,2]
+                #    b, a = signal.butter(5, [0.5/15, 4/15], btype='band')
+                #    X = signal.lfilter(b, a, X)
+                #    X_std = X                    
+                #    X_std = StandardScaler().fit_transform(X_std)
+                #    X_f=pca.fit(X_std).transform(X_std)
+                #    X_f_filt = X_f[:,2]
                     #X_f_filt = np.convolve(X_f[:,2],hamming,mode='same') #apply filter
                     #X_f_filt = np.insert(X_f_filt,0,np.zeros(5))
                     #X_f_filt = X_f
                    # X_f_filt = np.convolve(G[-99:],hamming,mode='same') #apply filter (green)
-                    T = 1/30
-                    N = 100
-                    yf = fft(X_f_filt)
+                #    T = 1/30
+                #    N = 406
+                #    yf = fft(X_f_filt)
+                #   xf = fftfreq(N, T)
+                #    xf = fftshift(xf)
+                #    yplot = fftshift(abs(yf))
+                #    plt.figure(1)
+                #    plt.gcf().clear()
+                #    fft_plot = yplot
+                #    fft_plot[xf<=0.8] = 0
+                #    print(str(xf[fft_plot[xf<=2].argmax()]*60)+' bpm')
+                #    plt.plot(xf[(xf>=0) & (xf<=4)], fft_plot[(xf>=0) & (xf<=4)])
+                    N = 600
+                    G_std = StandardScaler().fit_transform(np.array(G[-(N-1):]).reshape(-1, 1))
+                    G_std = G_std.reshape(1, -1)[0]
+                    R_std = StandardScaler().fit_transform(np.array(R[-(N-1):]).reshape(-1, 1))
+                    R_std = R_std.reshape(1, -1)[0]
+                    B_std = StandardScaler().fit_transform(np.array(B[-(N-1):]).reshape(-1, 1))
+                    B_std = B_std.reshape(1, -1)[0]
+                    T = 1/(len(time[-(N-1):])/(time[-1]-time[-(N-1)]))
+                   # b, a = signal.butter(4, [0.5/(1/(2*T)), 1.6/(1/(2*T))], btype='band')
+                   # G_std = signal.lfilter(b, a, G_std)
+                   # R_std = signal.lfilter(b, a, R_std)
+                   # B_std = signal.lfilter(b, a, B_std)
+                    X_f=pca.fit_transform(np.array([R_std,G_std,B_std]).transpose()).transpose()
+                    
+                    N = len(X_f[0])
+                    yf = fft(X_f[2])
+                   # yf = fft(R_std)
                     xf = fftfreq(N, T)
                     xf = fftshift(xf)
                     yplot = fftshift(abs(yf))
@@ -189,6 +215,11 @@ while cap.isOpened():
                     fft_plot[xf<=0.8] = 0
                     print(str(xf[fft_plot[xf<=2].argmax()]*60)+' bpm')
                     plt.plot(xf[(xf>=0) & (xf<=4)], fft_plot[(xf>=0) & (xf<=4)])
+                    
+                    
+                    #f,Px_ssd = signal.welch(X_f[1],30)
+                   # print(f[Px_ssd.argmax()]*60)
+                   # plt.plot(f,Px_ssd)
                     plt.pause(0.001)
 
                     
