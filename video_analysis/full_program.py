@@ -45,7 +45,7 @@ def checkedTrace(img0, img1, p0, back_threshold = 1.0):
     status = d < back_threshold
     return p1, status
 
-#cap = cv2.VideoCapture("C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/test/VJ+KLT_test.mp4")
+cap = cv2.VideoCapture("C:\\Users\\Bijta\\Documents\\GitHub\\non-contact-heart-rate\\video_analysis\\test\\DSC_0009.mov")
 time = []
 R = []
 G = []
@@ -58,7 +58,7 @@ def R_quantize(R,num):
     n = np.floor((R/(256/num))+0.5)
     return n
 
-cap = cv2.VideoCapture(0)
+#cap = cv2.VideoCapture(0)
 if cap.isOpened() == False:
     print("Failed to open webcam")
 frame_num = 0
@@ -196,7 +196,8 @@ while cap.isOpened():
                     R_std = R_std.reshape(1, -1)[0]
                     B_std = StandardScaler().fit_transform(np.array(B[-(N-1):]).reshape(-1, 1))
                     B_std = B_std.reshape(1, -1)[0]
-                    T = 1/(len(time[-(N-1):])/(time[-1]-time[-(N-1)]))
+                    #T = 1/(len(time[-(N-1):])/(time[-1]-time[-(N-1)]))
+                    T = 1/30
                    # b, a = signal.butter(4, [0.5/(1/(2*T)), 1.6/(1/(2*T))], btype='band')
                    # G_std = signal.lfilter(b, a, G_std)
                    # R_std = signal.lfilter(b, a, R_std)

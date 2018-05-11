@@ -29,7 +29,8 @@ R = []
 G = []
 B = []
 pca = FastICA(n_components=3) #the ICA class
-cap = cv2.VideoCapture(0) # open webcam
+#cap = cv2.VideoCapture(0) # open webcam
+cap = cv2.VideoCapture("C:\\Users\\Bijta\\Documents\\GitHub\\non-contact-heart-rate\\video_analysis\\test\\DSC_0007.MOV")
 if cap.isOpened() == False:
     print("Failed to open webcam")
 frame_num = 0 # start counting the frames
@@ -70,7 +71,8 @@ while cap.isOpened():
                 R_std = R_std.reshape(1, -1)[0]
                 B_std = StandardScaler().fit_transform(np.array(B[-(N-1):]).reshape(-1, 1))
                 B_std = B_std.reshape(1, -1)[0]
-                T = 1/(len(time[-(N-1):])/(time[-1]-time[-(N-1)]))
+                #T = 1/(len(time[-(N-1):])/(time[-1]-time[-(N-1)]))
+                T = 1/29.97
                 X_f=pca.fit_transform(np.array([R_std,G_std,B_std]).transpose()).transpose()
               #  b, a = signal.butter(4, [0.5/15, 1.6/15], btype='band')
                # X_f = signal.lfilter(b, a, X_f)
@@ -88,6 +90,6 @@ while cap.isOpened():
                 plt.plot(xf[(xf>=0) & (xf<=4)], fft_plot[(xf>=0) & (xf<=4)])
                 plt.pause(0.001)
                 
-            if frame_num == 2000:
+            if frame_num == 1100:
                 cap.release()
                 

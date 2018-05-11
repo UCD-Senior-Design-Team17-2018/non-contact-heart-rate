@@ -1,40 +1,46 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sat Apr 14 12:39:55 2018
+Created on Sat Apr 21 18:29:22 2018
 
 @author: Bijta
 """
 
+import numpy as np
 import cv2
 import datetime
-import numpy as np
+import time
+time_video = []
+cap = cv2.VideoCapture(0)
 
-firstFrame = None
-time = []
-cap = cv2.VideoCapture(0) # open webcam
-cap.set(cv2.cv2.CAP_PROP_FPS, 10)
-cap.set(15, 0.1)
-if cap.isOpened() == False:
-    print("Failed to open webcam")
-frame_num = 0 # start counting the frames
-while cap.isOpened(): 
-    ret, frame = cap.read() # read in the frame, status
-    if ret == True: # if status is true
-        frame_num += 1 # count frame
-        try:
-            if firstFrame is None: 
-                firstFrame = frame
-                start = datetime.datetime.now() # start time
-                time.append(0)
-                cv2.imshow('frame',firstFrame)
-                cv2.waitKey(1)
-            else:
-                current = datetime.datetime.now() - start
-                cv2.imshow("frame",frame)
-                current = current.total_seconds()
-                time.append(current)
-                cv2.waitKey(1)
-        except KeyboardInterrupt:
-            cap.release()
-            
-            
+# Define the codec and create VideoWriter object
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter('ghausi lab background 5/2.avi',fourcc, 30.0, (640,480))
+i = 0 
+time.sleep(2)
+while(cap.isOpened()):
+    i += 1
+    print(i)
+    ret, frame = cap.read()
+    time = datetime.datetime.now() #  time
+    if ret==True:
+        if i == 1:
+            start = time
+            time_video.append(0)
+        else:
+            time_video.append((time-start).total_seconds())
+        # write the frame
+        out.write(frame)
+
+        cv2.imshow('frame',frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    else:
+        break
+
+#f = open("ghausi_lab_background_5-2.txt", "w+")
+#f.write(str(time))
+
+# Release everything if job is finished
+cap.release()
+out.release()
+cv2.destroyAllWindows()

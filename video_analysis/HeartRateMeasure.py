@@ -11,7 +11,7 @@ import numpy as np
 from scipy import signal
 from scipy.fftpack import fft, fftfreq, fftshift
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.decomposition import PCA
+from sklearn.decomposition import FastICA
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
@@ -25,8 +25,9 @@ lk_params = dict( winSize  = (15,15),
                   maxLevel = 2,
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 # Create some random colors
-color = np.random.randint(0,255,(100,3))
-
+#color = np.random.randint(0,255,(100,3))
+pca = FastICA(n_components=3) #the ICA class
+hamming = signal.firwin(100, [0.7,3], window = 'hamming', pass_zero=False,fs=30)
 def checkedTrace(img0, img1, p0, back_threshold = 1.0):
     p1, _st, _err = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk_params)
     p0r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk_params)
@@ -35,7 +36,7 @@ def checkedTrace(img0, img1, p0, back_threshold = 1.0):
     return p1, status
 
 class HeartRateMeasure():
-    def __init__(self,video_src=0, window_size=100, fps=30):
+    def __init__(self,video_src=0, window_size=900, fps=30):
         self.fps = fps
         self.cap = cv2.VideoCapture(video_src)
         self.frame = []
@@ -48,6 +49,8 @@ class HeartRateMeasure():
         self.frame_num = 0
         self.firstFrame = []
         self.faces = ()
+        self.cutoffs=[0.75, 4]
+        self.weights = [0, 1]
         # Change this variable based on the location of your cloned, local repositories on your computer
         PATH_TO_HAAR_CASCADES = "C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/haarcascade_frontalface_default.xml" 
         if not os.path.exists(PATH_TO_HAAR_CASCADES):
@@ -79,8 +82,10 @@ class HeartRateMeasure():
                 if len(self.firstFrame) == 0:
                     self.frame_gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
                     self.first_frame()
-                    print('hello')
+                    print('first frame done')
                 else:
+                    if self.frame_num % 10 == 0:
+                        print(self.frame_num)
                     lk_stat, self.frame = self.LK_track(self.old_gray,self.frame,self.p0)
                     if lk_stat:
                         cv2.imshow('frame',self.frame)
@@ -88,19 +93,52 @@ class HeartRateMeasure():
                         print('lk')
                         self.faces = np.array([[self.x,self.y,self.x2,self.y2]])
                         self.ROI_color, self.R_new, self.G_new, self.B_new, self.VJ_mask = self.findROIavgRGB(self.faces,self.frame,self.im)
-                        self.R.append(R_new)
-                        self.G.append(G_new)
-                        self.B.append(B_new)
+                        self.R.append(self.R_new)
+                        self.G.append(self.G_new)
+                        self.B.append(self.B_new)
                         self.old_gray = self.frame_gray.copy()
                         self.p0 = self.good_new.reshape(-1,1,2)
                         if self.frame_num >= self.window_size:
-                            self.X = np.array([self.R[(-self.window_size+1):],self.G[(-self.window_size+1):],self.B[(-self.window_size+1):]]).transpose()
+                            self.signal = self.signal_processing()
+                            self.fft_max(self.signal,1/self.fps,self.frame_num,self.window_size,self.cutoffs,self.weights)
                             
 
                     else:
                         break
                     
             
+    def signal_processing(self):
+        #R_std = signal.detrend(self.R[(-self.window_size+1):])
+        G_std = signal.detrend(self.G[(-self.window_size+1):])
+        #B_std = signal.detrend(self.B[(-self.window_size+1):])
+        # T = 1/(len(time[-(N-1):])/(time[-1]-time[-(N-1)])) #calculate time between first and last frame (period)
+        #X_f=pca.fit_transform(np.array([R_std,G_std,B_std]).transpose()).transpose() 
+        #filtering
+        #b, a = signal.butter(4, [0.75/15, 1.6/15], btype='band') #Butterworth filter
+        X_f = signal.lfilter(hamming, 1, G_std) 
+        return X_f
+
+    def fft_max(self,signal,T,frame_num,window_size,cutoffs,weights):
+        #FFT
+        N = len(signal)
+        yf = fft(signal)
+        yf = yf/np.sqrt(N) #Normalize FFT
+        xf = fftfreq(N, T) # FFT frequencies 
+        xf = fftshift(xf) #FFT shift
+        yplot = fftshift(abs(yf))
+        plt.figure(1)
+        plt.gcf().clear()
+        fft_plot = yplot
+        if frame_num == window_size:
+            self.bpm = xf[(xf>=cutoffs[0]) & (xf<=cutoffs[1])][fft_plot[(xf>=cutoffs[0]) & (xf<=cutoffs[1])].argmax()]*60
+        else:
+            self.bpm = weights[0]*self.bpm + weights[1]*(xf[(xf>=cutoffs[0]) & (xf<=cutoffs[1])][fft_plot[(xf>=cutoffs[0]) & (xf<=cutoffs[1])].argmax()]*60)
+        print(str(self.bpm)+' bpm') # Print heart rate
+        plt.plot(xf[(xf>=cutoffs[0]) & (xf<=cutoffs[1])], fft_plot[(xf>=cutoffs[0]) & (xf<=cutoffs[1])]) # Plot FFT
+        plt.pause(0.001)
+        
+        
+
             
     def first_frame(self):
         self.start = datetime.datetime.now() #inital time for plotting, fps calculation
@@ -174,12 +212,12 @@ class HeartRateMeasure():
             self.y2 = transformed[2,0,1]
             cv2.rectangle(frame,(self.x,self.y),(self.x+self.w,self.y+self.h),(255,0,0),2)
             cv2.rectangle(frame,(self.x,self.y),(self.x2,self.y2),(0,255,0),2) 
-          #  cv2.imshow('frame',frame)
+            cv2.imshow('frame',frame)
             return True, frame
         
 if __name__ == "__main__":
     try:
-        main = HeartRateMeasure()
+        main = HeartRateMeasure(video_src="C:\\Users\\Bijta\\Documents\\GitHub\\non-contact-heart-rate\\video_analysis\\test\\DSC_0009.mov")
         main.run()
     except KeyboardInterrupt:
         main.cap.release()
