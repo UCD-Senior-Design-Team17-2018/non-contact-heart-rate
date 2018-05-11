@@ -26,8 +26,7 @@ lk_params = dict( winSize  = (15,15),
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 # Create some random colors
 #color = np.random.randint(0,255,(100,3))
-pca = FastICA(n_components=3) #the ICA class
-hamming = signal.firwin(100, [0.7,3], window = 'hamming', pass_zero=False,fs=30)
+hamming = signal.firwin(64, [0.7,3], window = 'hamming', pass_zero=False,fs=30)
 def checkedTrace(img0, img1, p0, back_threshold = 1.0):
     p1, _st, _err = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk_params)
     p0r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk_params)
@@ -36,7 +35,7 @@ def checkedTrace(img0, img1, p0, back_threshold = 1.0):
     return p1, status
 
 class HeartRateMeasure():
-    def __init__(self,video_src=0, window_size=900, fps=30):
+    def __init__(self,video_src=0, window_size=600, fps=30):
         self.fps = fps
         self.cap = cv2.VideoCapture(video_src)
         self.frame = []
@@ -49,8 +48,8 @@ class HeartRateMeasure():
         self.frame_num = 0
         self.firstFrame = []
         self.faces = ()
-        self.cutoffs=[0.75, 4]
-        self.weights = [0, 1]
+        self.cutoffs=[0.75, 3]
+        self.weights = [0.9, 0.1]
         # Change this variable based on the location of your cloned, local repositories on your computer
         PATH_TO_HAAR_CASCADES = "C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/haarcascade_frontalface_default.xml" 
         if not os.path.exists(PATH_TO_HAAR_CASCADES):
@@ -180,7 +179,7 @@ class HeartRateMeasure():
         VJ_mask = cv2.cvtColor(VJ_mask, cv2.COLOR_BGR2GRAY)
         ROI = cv2.bitwise_and(VJ_mask,im)
         ROI_color = cv2.bitwise_and(frame,frame,mask=ROI)
-        R_new,G_new,B_new,_ = cv2.mean(ROI_color,mask=ROI)
+        R_new,G_new,B_new,_ = cv2.mean(ROI_color,mask=VJ_mask)
         cv2.imshow('ROI',ROI_color)
         cv2.waitKey(10)
         return ROI_color, R_new, G_new, B_new, VJ_mask
@@ -217,7 +216,7 @@ class HeartRateMeasure():
         
 if __name__ == "__main__":
     try:
-        main = HeartRateMeasure(video_src="C:\\Users\\Bijta\\Documents\\GitHub\\non-contact-heart-rate\\video_analysis\\test\\DSC_0009.mov")
+        main = HeartRateMeasure(video_src="C:\\Users\\Bijta\\Documents\\GitHub\\non-contact-heart-rate\\video_analysis\\test\\HR2.mov")
         main.run()
     except KeyboardInterrupt:
         main.cap.release()

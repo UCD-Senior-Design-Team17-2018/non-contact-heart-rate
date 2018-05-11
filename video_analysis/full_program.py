@@ -199,13 +199,13 @@ while cap.isOpened():
                     #T = 1/(len(time[-(N-1):])/(time[-1]-time[-(N-1)]))
                     T = 1/30
                    # b, a = signal.butter(4, [0.5/(1/(2*T)), 1.6/(1/(2*T))], btype='band')
-                   # G_std = signal.lfilter(b, a, G_std)
+                    G_std = signal.lfilter(hamming, 1, G_std)
                    # R_std = signal.lfilter(b, a, R_std)
                    # B_std = signal.lfilter(b, a, B_std)
-                    X_f=pca.fit_transform(np.array([R_std,G_std,B_std]).transpose()).transpose()
+                   # X_f=pca.fit_transform(np.array([R_std,G_std,B_std]).transpose()).transpose()
                     
-                    N = len(X_f[0])
-                    yf = fft(X_f[2])
+                    N = len(G_std)
+                    yf = fft(G_std)
                    # yf = fft(R_std)
                     xf = fftfreq(N, T)
                     xf = fftshift(xf)
