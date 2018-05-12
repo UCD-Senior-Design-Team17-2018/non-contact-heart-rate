@@ -1,0 +1,65 @@
+VJ_verification1.jpg:
+Face++:
+"face_rectangle": {
+        "width": 132,
+        "top": 354,
+        "left": 638,
+        "height": 132
+      }
+
+x1 = (638,354)
+x2 = (770,486)
+
+VJ:
+619 321 155 155
+
+x1 = (619,321) 
+x2 = (774,476)
+
+VJ_verification2.jpg:
+Face++:
+"face_rectangle": {
+        "width": 181,
+        "top": 227,
+        "left": 624,
+        "height": 181
+      },
+
+x1 = (624,227)
+x2 = (805,408)
+
+VJ:
+608 174 218 218
+608 174 826 392
+
+x1 = (608,174)
+x2 = (826,392)
+
+VJ_verification3.jpg:
+Face++:
+"face_rectangle": {
+        "width": 125,
+        "top": 308,
+        "left": 701,
+        "height": 125
+      },
+
+x1 = (701,308)
+x2 = (826,433)
+
+VJ:
+686 266 159 159
+686 266 845 425
+
+x1 = (686,266)
+x2 = (845,425)
+
+VJ_verification_null.jpg:
+Face++:
+"No Face Detected"
+
+VJ:
+No bounding box was displayed:
+
+
+

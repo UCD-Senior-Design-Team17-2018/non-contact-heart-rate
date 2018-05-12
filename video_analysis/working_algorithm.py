@@ -12,10 +12,8 @@ import cv2
 import datetime
 import numpy as np
 from scipy import signal
-from scipy.fftpack import fftfreq, fftshift
+from scipy.fftpack import fft, fftfreq, fftshift
 import pyfftw
-from sklearn.decomposition import PCA, FastICA
-from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 # Change these variables based on the location of your cloned, local repositories on your computer
 PATH_TO_HAAR_CASCADES = "C:/Users/Bijta/Documents/GitHub/non-contact-heart-rate/video_analysis/" 
@@ -23,7 +21,6 @@ face_cascade = cv2.CascadeClassifier(PATH_TO_HAAR_CASCADES+'haarcascade_frontalf
 firstFrame = None
 time = []
 G = []
-pca = FastICA(n_components=3) #the ICA class
 # Constants for finding range of skin color in YCrCb
 min_YCrCb = np.array([80,133,77],np.uint8)
 max_YCrCb = np.array([255,173,127],np.uint8)
@@ -47,7 +44,7 @@ def checkedTrace(img0, img1, p0, back_threshold = 1.0):
     return p1, status
 
 
-hamming = signal.firwin(100, [0.7,3], window = 'hamming', pass_zero=False,fs=29.97) #fs needs to be changed, doing in dark environment so...
+hamming = signal.firwin(100, [0.7,3], window = 'hamming', pass_zero=False,nyq=15) #fs needs to be changed, doing in dark environment so...
 def skin_detection(frame):
     # Convert image to YCrCb
     imageYCrCb = cv2.cvtColor(frame,cv2.COLOR_BGR2YCR_CB)
@@ -61,7 +58,7 @@ pyfftw.interfaces.cache.enable()
 pyfftw.interfaces.cache.set_keepalive_time(1.0)
 # open video file
 #cap = cv2.VideoCapture(0)
-cap = cv2.VideoCapture("C:\\Users\\Bijta\\Documents\\GitHub\\non-contact-heart-rate\\video_analysis\\test\\HR2.mov")
+cap = cv2.VideoCapture("C:\\Users\\Bijta\\Documents\\GitHub\\non-contact-heart-rate\\video_analysis\\test\\DSC_0009.mov")
 if cap.isOpened() == False:
     print("Failed to open file")
 frame_num = 0 # start counting the frames
@@ -135,13 +132,13 @@ while cap.isOpened():
                 VJ_mask = cv2.rectangle(VJ_mask,(x,y),(x2,y2),(255,255,255),-1)
                 ROI = cv2.bitwise_and(VJ_mask,im)
                 ROI_color = cv2.bitwise_and(frame,frame,mask=ROI)
-                #cv2.imshow('ROI',ROI_color)
+             #   cv2.imshow('ROI',ROI_color)
                 #take average signal in the region of interest (mask)
                 _,G_new,_,_ = cv2.mean(ROI_color, mask=ROI)
                 G.append(G_new)
-            if frame_num >= 700: # when 900 frames collected, start calculating heart rate (sliding window)
-                if (frame_num-600) % 1 == 0: # after every 1 frame, calculate heart rate using the data in the sliding window
-                    N = 600 # about 25 seconds of data
+            if frame_num >= 200: # when 900 frames collected, start calculating heart rate (sliding window)
+                if (frame_num-200) % 1 == 0: # after every 1 frame, calculate heart rate using the data in the sliding window
+                    N = 200 # about 25 seconds of data
                         #normalize RGB signals
                     G_std = signal.detrend(G[-N:-1])
                     
@@ -158,27 +155,27 @@ while cap.isOpened():
                     
                     #FFT
                     N = len(X_f)
-                    yf = pyfftw.interfaces.scipy_fftpack.fft(X_f)
+                    yf = fft(X_f)
                     yf = yf/np.sqrt(N) #Normalize FFT
                     xf = fftfreq(N, T) # FFT frequencies 
                     xf = fftshift(xf) #FFT shift
                     yplot = fftshift(abs(yf))
-                    #plt.figure(1)
-                    #plt.gcf().clear()
+                    plt.figure(1)
+                    plt.gcf().clear()
                     fft_plot = yplot
                     # Find highest peak between 0.75 and 4 Hz 
                  #   fft_plot[xf<=0.75] = 0 
-                    if frame_num == 700:
+                    if frame_num == 200:
                         bpm = xf[(xf>=0.75) & (xf<=4)][fft_plot[(xf>=0.75) & (xf<=4)].argmax()]*60
                     else:
                         bpm = 0.9*bpm + 0.1*(xf[(xf>=0.75) & (xf<=4)][fft_plot[(xf>=0.75) & (xf<=4)].argmax()]*60)
                     print(str(bpm)+' bpm') # Print heart rate
-                    #plt.plot(xf[(xf>=0)], fft_plot[(xf>=0)]) # Plot FFT
+                    plt.plot(xf[(xf>=0)], fft_plot[(xf>=0)]) # Plot FFT
                     plt.pause(0.001)
             if frame_num % 10 == 0:
                 print(frame_num)
                 
-            if frame_num == 2000:
+            if frame_num == 870:
                 cap.release()
             
             old_gray = frame_gray.copy()
